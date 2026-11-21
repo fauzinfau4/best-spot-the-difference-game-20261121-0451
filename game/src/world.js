@@ -1,0 +1,13 @@
+import {LEVELS,TUNING} from './config.js';
+import {DIFFERENCES} from './scenes.js';
+import {shuffled} from './random.js';
+export function createWorld(seed=1){return{state:'title',level:0,score:0,found:[],wrong:null,wrongTime:0,markers:[],hints:3,hintId:null,hintTime:0,streak:0,time:LEVELS[0].time,elapsed:0,clicks:0,hits:0,levelScores:[],muted:false,seed,notice:'',noticeTime:0,totalClicks:0,totalHits:0,elapsedTotal:0};}
+export function currentLevel(w){return LEVELS[w.level]}
+export function resetLevel(w){w.found=[];w.markers=[];w.hints=currentLevel(w).hints;w.hintId=null;w.hintTime=0;w.time=currentLevel(w).time;w.elapsed=0;w.clicks=0;w.hits=0;w.wrong=null;w.wrongTime=0;}
+export function startGame(w){w.score=0;w.level=0;w.levelScores=[];w.totalClicks=0;w.totalHits=0;w.elapsedTotal=0;resetLevel(w);w.state='playing'}
+export function nextLevel(w){w.level++;if(w.level>=LEVELS.length){w.state='won';return}resetLevel(w);w.state='playing'}
+export function tick(w,dt){if(w.state==='playing'){w.elapsed+=dt;w.elapsedTotal+=dt;w.time=Math.max(0,w.time-dt);if(w.time===0)w.state='level-failed'}for(const m of w.markers)m.life-=dt;w.markers=w.markers.filter(m=>m.life>0);w.wrongTime=Math.max(0,w.wrongTime-dt);w.hintTime=Math.max(0,w.hintTime-dt);w.noticeTime=Math.max(0,w.noticeTime-dt)}
+export function registerClick(w,x,y,side=0){if(w.state!=='playing')return{type:'ignored'};w.clicks++;w.totalClicks++;const diff=DIFFERENCES[w.level].find(d=>!w.found.includes(d.id)&&Math.hypot(x-d.x,y-d.y)<=d.r);if(diff){w.found.push(diff.id);w.hits++;w.totalHits++;w.streak++;const points=100+Math.min(TUNING.streakCap,(w.streak-1)*TUNING.streakStep);w.score+=points;w.markers.push({x:diff.x,y:diff.y,life:TUNING.markerLife,id:diff.id});if(w.found.length===DIFFERENCES[w.level].length){const bonus=Math.floor(w.time)*2;w.score+=bonus;w.levelScores.push({score:w.score,accuracy:w.clicks?Math.round(w.hits/w.clicks*100):100,timeBonus:bonus,stars:w.time>currentLevel(w).time*.55?3:w.time>currentLevel(w).time*.25?2:1});w.state='level-complete'}return{type:'found',diff,points}}
+ w.streak=0;w.time=Math.max(0,w.time-TUNING.wrongSeconds);w.wrong={x,y,side};w.wrongTime=TUNING.flashLife;if(!w.time)w.state='level-failed';return{type:'wrong'};}
+export function useHint(w){if(w.state!=='playing'||w.hints<=0)return null;const left=DIFFERENCES[w.level].filter(d=>!w.found.includes(d.id));if(!left.length)return null;const order=shuffled(left,currentLevel(w).seed+w.found.length+w.seed);const d=order[0];w.hints--;w.score=Math.max(0,w.score-TUNING.hintCost);w.hintId=d.id;w.hintTime=2.4;return d}
+export function accuracy(w){return w.totalClicks?Math.round(w.totalHits/w.totalClicks*100):100}
